@@ -1,0 +1,168 @@
+# ============================================
+# SEGURIDAD PARA CATALEJOO.COM
+# ============================================
+Options -Indexes
+ServerSignature Off
+# ============================================
+# PROTEGER ARCHIVOS SENSIBLES
+# ============================================
+<FilesMatch "(conexion\.php|config\.php|email_config\.php|\.env|\.htaccess|\.htpasswd)$">
+    Require all denied
+</FilesMatch>
+<FilesMatch "\.(bak|sql|log|sh|inc|old|orig|~|swp|sqlite|db|json|yml|yaml|ini|conf)$">
+    Require all denied
+</FilesMatch>
+# Bloquear archivo temporal de pruebas (BORRAR cuando termine)
+#<FilesMatch "test_moneda\.php$">
+#   Require all denied
+#</FilesMatch>
+# BLOQUEAR ACCESO DIRECTO A includes/ (CON EXCEPCIONES)
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_URI} ^/includes/.*\.(php|inc|txt)$
+    # EXCEPCIONES - Archivos necesarios para la tienda
+    RewriteCond %{REQUEST_URI} !/includes/cargar_mas_productos\.php$
+    RewriteCond %{REQUEST_URI} !/includes/buscar_ajax\.php$
+    RewriteCond %{REQUEST_URI} !/includes/filtrar_productos\.php$
+    RewriteCond %{REQUEST_URI} !/includes/carrito_ajax\.php$
+    RewriteCond %{REQUEST_URI} !/includes/filtrar_avanzado\.php$
+    RewriteCond %{REQUEST_URI} !/includes/obtener_categoria\.php$
+    RewriteCond %{REQUEST_URI} !/includes/total_filtro\.php$
+    RewriteCond %{REQUEST_URI} !/includes/cliente_ajax\.php$
+    RewriteCond %{REQUEST_URI} !/includes/get_producto_modal\.php$
+    RewriteCond %{REQUEST_URI} !/includes/get_combo_modal\.php$
+    RewriteCond %{REQUEST_URI} !/includes/cargar_combos\.php$
+    RewriteCond %{REQUEST_URI} !/includes/cargar_mas_combos\.php$
+    RewriteCond %{REQUEST_URI} !/includes/total_combos\.php$
+    RewriteCond %{REQUEST_URI} !/includes/obtener_municipios_ajax\.php$
+    RewriteCond %{REQUEST_URI} !/includes/enviar_magic_link\.php$
+    RewriteCond %{REQUEST_URI} !/includes/enviar_magic_link_editar_cliente\.php$
+    RewriteCond %{REQUEST_URI} !/includes/obtener_datos_pago\.php$
+    RewriteCond %{REQUEST_URI} !/includes/funciones_tienda\.php$
+    RewriteCond %{REQUEST_URI} !/includes/proveedores/cambiar_moneda_ajax\.php$
+    RewriteRule .* - [F,L]
+</IfModule>
+# BLOQUEAR PHP EN uploads/
+<IfModule mod_rewrite.c>
+    RewriteCond %{REQUEST_URI} ^/uploads/.*\.(php|phtml|php3|php4|php5|phar|pl|py|jsp|asp|sh|cgi)$
+    RewriteRule .* - [F,L]
+</IfModule>
+# ============================================
+# CABECERAS DE SEGURIDAD
+# ============================================
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "DENY"
+    Header set X-XSS-Protection "1; mode=block"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+    Header set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" 
+# CSP CORREGIDO - Compatible con iOS/Safari
+Header set Content-Security-Policy "default-src 'self' https://catalejoo.com https://catalejo.rf.gd https://goldenrod-skunk-982871.hostingersite.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://code.jquery.com https://cdnjs.cloudflare.com https://catalejoo.com https://catalejo.rf.gd https://goldenrod-skunk-982871.hostingersite.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://catalejoo.com https://catalejo.rf.gd https://goldenrod-skunk-982871.hostingersite.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com https://catalejoo.com https://goldenrod-skunk-982871.hostingersite.com; img-src 'self' data: https: https://catalejoo.com https://catalejo.rf.gd https://goldenrod-skunk-982871.hostingersite.com; connect-src 'self' https://catalejoo.com https://catalejo.rf.gd https://goldenrod-skunk-982871.hostingersite.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+# Para iOS/Safari - Forzar no caché
+<IfModule mod_headers.c>
+   SetEnvIf User-Agent "iPhone|iPad|iPod" is_ios
+   Header set Cache-Control "no-cache, no-store, must-revalidate" env=is_ios
+</IfModule>    
+Header set Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=(), bluetooth=()"
+# Cache para archivos dinámicos
+    <FilesMatch "\.(php|html)$">
+        Header set Cache-Control "no-store, no-cache, must-revalidate"
+    </FilesMatch>
+</IfModule>
+# ============================================
+# REDIRIGIR A HTTPS Y WWW
+# ============================================
+RewriteEngine On
+# 1. Redirigir www a no-www (SIN www)
+RewriteCond %{HTTP_HOST} ^www\.catalejoo\.com [NC]
+RewriteRule ^(.*)$ https://catalejoo.com/$1 [R=301,L]
+# 2. Redirigir HTTP a HTTPS
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+# ============================================
+# BLOQUEAR BOTS MALICIOSOS
+# ============================================
+# NOTA: NO bloquear curl/wget globalmente porque las pasarelas los usan para webhooks
+RewriteCond %{HTTP_USER_AGENT} (zgrab|masscan|nikto|nmap|sqlmap|wpscan|burp|acunetix) [NC]
+RewriteRule .* - [F,L]
+# Bloquear curl/wget SOLO fuera de /checkout/pago/webhook.php
+RewriteCond %{HTTP_USER_AGENT} (curl|wget|python-requests) [NC]
+RewriteCond %{REQUEST_URI} !^/checkout/pago/webhook\.php
+RewriteRule .* - [F,L]
+# ============================================
+# URLS LIMPIAS
+# ============================================
+# Combos
+RewriteRule ^combos$ combos.php [L]
+RewriteRule ^combo/([0-9]+)$ combos.php?id=$1 [L]
+RewriteRule ^combo/([0-9]+)/[a-zA-Z0-9_-]+$ combos.php?id=$1 [L]
+# Productos
+RewriteRule ^producto/([0-9]+)$ producto_detalle.php?id=$1 [L]
+RewriteRule ^producto/([0-9]+)/[a-zA-Z0-9_-]+$ producto_detalle.php?id=$1 [L]
+# Categorías
+RewriteRule ^categoria/([0-9]+)$ index.php?categoria=$1 [L]
+RewriteRule ^categoria/([0-9]+)/[a-zA-Z0-9_-]+$ index.php?categoria=$1 [L]
+# ============================================
+# TIENDAS DE PROVEEDORES (SLUGS AMIGABLES)
+# ============================================
+# Redirigir /slug a index.php?proveedor=slug (cambia la URL visible)
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^([a-zA-Z0-9_-]+)$ index.php?proveedor=$1&%{QUERY_STRING} [R=301,L,QSA]
+# Slug con filtro de categoría
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^([a-zA-Z0-9_-]+)/categoria/([0-9]+)$ index.php?proveedor=$1&categoria=$2&%{QUERY_STRING} [R=301,L,QSA]
+# ============================================
+# HOTLINKING DE IMÁGENES - CORREGIDO
+# ============================================
+RewriteCond %{HTTP_REFERER} !^$
+# Permitir tu dominio principal
+RewriteCond %{HTTP_REFERER} !^https?://(www\.)?catalejoo\.com [NC]
+RewriteCond %{HTTP_REFERER} !^https?://(www\.)?catalejoo\.com/.*$ [NC]
+# Permitir subdominio de InfinityFree (si lo usas)
+RewriteCond %{HTTP_REFERER} !^https?://(www\.)?catalejo\.rf\.gd [NC]
+RewriteCond %{HTTP_REFERER} !^https?://(www\.)?catalejo\.rf\.gd/.*$ [NC]
+# Permitir dominio de Hostinger para recursos (temporal)
+RewriteCond %{HTTP_REFERER} !^https?://goldenrod-skunk-982871\.hostingersite\.com [NC]
+RewriteCond %{HTTP_REFERER} !^https?://goldenrod-skunk-982871\.hostingersite\.com/.*$ [NC]
+# Bloquear
+RewriteRule \.(jpg|jpeg|png|gif|webp|svg|ico)$ - [F,L]
+# ============================================
+# COMPRESIÓN GZIP
+# ============================================
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css text/javascript application/javascript application/json text/xml application/xml text/plain
+    AddOutputFilterByType DEFLATE image/svg+xml application/rss+xml
+</IfModule>
+# ============================================
+# CACHÉ DE NAVEGADOR
+# ============================================
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType image/jpg "access plus 1 year"
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/webp "access plus 1 year"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/gif "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType font/woff2 "access plus 1 year"
+    ExpiresByType application/json "access plus 0 seconds"
+    ExpiresByType text/html "access plus 0 seconds"
+</IfModule>
+# ============================================
+# BLOQUEAR IPs MALICIOSAS (OPCIONAL)
+# ============================================
+<IfModule mod_authz_core.c>
+    <RequireAll>
+        Require all granted
+        # Require not ip 34.76.89.250  # Comentado por si causa problemas
+    </RequireAll>
+</IfModule>
+# ============================================
+# ACTIVAR LOG DE ERRORES PHP (TEMPORAL)
+# ============================================
+php_flag log_errors on
+php_value error_log /home/u106541140/domains/goldenrod-skunk-982871.hostingersite.com/public_html/error_log
